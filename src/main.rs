@@ -5,18 +5,18 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct TransactionList {
-    data: Option<Vec<Datum>>,
-    links: Option<TransactionListLinks>,
+    data: Vec<Datum>,
+    links: TransactionListLinks,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Datum {
     #[serde(rename = "type")]
-    datum_type: Option<String>,
-    id: Option<String>,
-    attributes: Option<Attributes>,
-    relationships: Option<Relationships>,
-    links: Option<DatumLinks>,
+    datum_type: String,
+    id: String,
+    attributes: Attributes,
+    relationships: Relationships,
+    links: DatumLinks,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,7 +33,7 @@ pub struct Attributes {
     #[serde(rename = "roundUp")]
     round_up: Option<serde_json::Value>,
     cashback: Option<serde_json::Value>,
-    amount: Option<Amount>,
+    amount: Amount,
     #[serde(rename = "foreignAmount")]
     foreign_amount: Option<serde_json::Value>,
     #[serde(rename = "cardPurchaseMethod")]
@@ -109,7 +109,7 @@ pub struct TransactionListLinks {
 async fn main() {
     dotenv().ok();
     let transactions = get_transactions().await;
-    println!("Transactions: {:?}", transactions);
+    parse_transactions(transactions.unwrap());
 }
 
 async fn get_transactions() -> Result<TransactionList, String> {
@@ -117,11 +117,11 @@ async fn get_transactions() -> Result<TransactionList, String> {
     let transaction_url = "https://api.up.com.au/api/v1/transactions";
     let response = client.get(transaction_url)
                         .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
+                        .query(&[("page[size]", "50")])
                         .send().await.unwrap();
 
     match response.status() {
         reqwest::StatusCode::OK => {
-            // on success, parse our JSON to an APIResponse
             let transaction_list = response.json::<TransactionList>().await.map_err(|e| format!("JSON deserialization error: {}", e))?;
             Ok(transaction_list)
         }
@@ -134,3 +134,16 @@ async fn get_transactions() -> Result<TransactionList, String> {
     }
 }
 
+fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
+    let list = transactions.data;
+    let income: Vec<Datum> = list.into_iter().filter(|t| {
+            if let Some(value) = t.attributes.amount.value_in_base_units {
+                return value > 0;
+            }
+            false
+        }
+    ).collect();
+    let names_only: Vec<String>= income.into_iter().filter_map(|t| t.attributes.raw_text ).collect();
+    println!("{:?}", names_only);
+    Ok(())
+}

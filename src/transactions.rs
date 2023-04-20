@@ -1,150 +1,91 @@
 use std::env;
 use std::fs::File;
-use std::io;
 use serde::{Serialize, Deserialize};
 use reqwest::{self, header::AUTHORIZATION};
 
-#[derive(Debug, Serialize, Deserialize)]
+const TRANSACTIONS_ENDPOINT: &str = "https://api.up.com.au/api/v1/transactions";
+
+#[derive(Serialize, Deserialize)]
 pub struct TransactionList {
-    data: Vec<Datum>,
-    links: TransactionListLinks,
+    pub data: Vec<TransactionResource>,
+    pub links: MetaLinks
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Datum {
+#[derive(Serialize, Deserialize)]
+pub struct MetaLinks {
+    pub prev: Option<String>,
+    pub next: Option<String>
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct TransactionResource {
     #[serde(rename = "type")]
-    datum_type: DatumType,
-    id: String,
-    attributes: Attributes,
-    relationships: Option<Relationships>,
-    links: DatumLinks,
+    pub _type: String,
+    pub id: String,
+    pub attributes: TransactionAttributes,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Attributes {
-    status: Status,
-    #[serde(rename = "rawText")]
-    raw_text: Option<String>,
-    description: String,
-    message: String,
-    #[serde(rename = "isCategorizable")]
-    is_categorizable: bool,
-    #[serde(rename = "holdInfo")]
-    hold_info: Option<serde_json::Value>,
-    #[serde(rename = "roundUp")]
-    round_up: Option<serde_json::Value>,
-    cashback: Option<serde_json::Value>,
-    amount: Amount,
-    #[serde(rename = "foreignAmount")]
-    foreign_amount: Option<serde_json::Value>,
-    #[serde(rename = "cardPurchaseMethod")]
-    card_purchase_method: Option<serde_json::Value>,
-    #[serde(rename = "settledAt")]
-    settled_at: String,
-    #[serde(rename = "createdAt")]
-    created_at: String,
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionAttributes {
+    pub status: TransactionStatusEnum,
+    pub raw_text: Option<String>,
+    pub description: String,
+    pub message: Option<String>,
+    pub is_categorizable: bool,
+    pub amount: MoneyObject,
+    pub settled_at: String,
+    pub created_at: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Amount {
-    #[serde(rename = "currencyCode")]
-    currency_code: CurrencyCode,
-    value: String,
-    #[serde(rename = "valueInBaseUnits")]
-    value_in_base_units: i64,
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum TransactionStatusEnum {
+    HELD,
+    SETTLED,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DatumLinks {
-    #[serde(rename = "self")]
-    links_self: String,
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HoldInfoObject {
+    pub amount: MoneyObject,
+    pub foreign_amount: Option<MoneyObject>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Relationships {
-    account: Account,
-    #[serde(rename = "transferAccount")]
-    transfer_account: Account,
-    category: Category,
-    #[serde(rename = "parentCategory")]
-    parent_category: ParentCategory,
-    tags: Category,
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyObject {
+    pub currency_code: String,
+    pub value: String,
+    pub value_in_base_units: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Account {
-    data: Option<Data>,
-    links: Option<AccountLinks>,
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoundUpObject {
+    pub amount: MoneyObject,
+    pub boost_portion: Option<MoneyObject>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Data {
-    #[serde(rename = "type")]
-    data_type: DataType,
-    id: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AccountLinks {
-    related: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Category {
-    #[serde(skip_serializing)]
-    data: Option<Vec<Option<serde_json::Value>>>,
-    links: Option<DatumLinks>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ParentCategory {
-    data: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TransactionListLinks {
-    prev: Option<serde_json::Value>,
-    next: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum CurrencyCode {
-    #[serde(rename = "AUD")]
-    Aud,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Status {
-    #[serde(rename = "SETTLED")]
-    Settled,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum DatumType {
-    #[serde(rename = "transactions")]
-    Transactions,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum DataType {
-    #[serde(rename = "accounts")]
-    Accounts,
+#[derive(Serialize, Deserialize)]
+pub struct CashbackObject {
+    pub description: String,
+    pub amount: MoneyObject,
 }
 
 #[derive(Serialize)]
 pub struct TransactionCSV {
     raw_text: Option<String>,
     description: String,
-    message: String,
+    message: Option<String>,
     value_in_base_units: i64,
 }
 
 pub async fn get_transactions() -> Result<TransactionList, String> {
     let client = reqwest::Client::new();
-    let transaction_url = "https://api.up.com.au/api/v1/transactions";
-    let response = client.get(transaction_url)
+    let response = client.get(TRANSACTIONS_ENDPOINT)
                         .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
-                        .query(&[("page[size]", "50")])
+                        .query(&[("page[size]", "100")])
                         .send().await.unwrap();
 
     match response.status() {

@@ -13,19 +13,25 @@ struct Args {
 
 #[derive(Debug, Parser)]
 pub enum Command {
-    // default command is build
     #[clap(name = "transactions")]
-    Transactions,
+    Transactions(TransactionsArgs),
 }
+
+#[derive(Debug, Parser)]
+pub struct TransactionsArgs {
+    #[arg(short, long)]
+    size: i8,
+}
+
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let args = Args::parse();
     match args.command {
-        Command::Transactions => {
-            let transactions = get_transactions().await;
-            parse_transactions(transactions.unwrap());
+        Command::Transactions(transactions_args) => {
+            let transactions = get_transactions(transactions_args.size).await;
+            let _parse = parse_transactions(transactions.unwrap());
         }
     }
 }

@@ -81,11 +81,11 @@ pub struct TransactionCSV {
     value_in_base_units: i64,
 }
 
-pub async fn get_transactions() -> Result<TransactionList, String> {
+pub async fn get_transactions(size: i8) -> Result<TransactionList, String> {
     let client = reqwest::Client::new();
     let response = client.get(TRANSACTIONS_ENDPOINT)
                         .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
-                        .query(&[("page[size]", "100")])
+                        .query(&[("page[size]", size.to_string())])
                         .send().await.unwrap();
 
     match response.status() {

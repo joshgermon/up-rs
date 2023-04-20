@@ -4,23 +4,29 @@ use dotenv::dotenv;
 use transactions::{get_transactions, parse_transactions};
 use clap::Parser;
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the person to greet
-    #[arg(short, long)]
-    name: String,
+    #[clap(subcommand)]
+    command: Command,
+}
 
-    /// Number of times to greet
-    #[arg(short, long, default_value_t = 1)]
-    count: u8,
+#[derive(Debug, Parser)]
+pub enum Command {
+    // default command is build
+    #[clap(name = "transactions")]
+    Transactions,
 }
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
     let args = Args::parse();
-    let transactions = get_transactions().await;
-    parse_transactions(transactions.unwrap());
+    match args.command {
+        Command::Transactions => {
+            let transactions = get_transactions().await;
+            parse_transactions(transactions.unwrap());
+        }
+    }
 }
 

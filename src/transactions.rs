@@ -1,4 +1,6 @@
 use std::env;
+use std::fs::File;
+use std::io;
 use serde::{Serialize, Deserialize};
 use reqwest::{self, header::AUTHORIZATION};
 
@@ -14,7 +16,7 @@ pub struct Datum {
     datum_type: DatumType,
     id: String,
     attributes: Attributes,
-    relationships: Relationships,
+    relationships: Option<Relationships>,
     links: DatumLinks,
 }
 
@@ -89,6 +91,7 @@ pub struct AccountLinks {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Category {
+    #[serde(skip_serializing)]
     data: Option<Vec<Option<serde_json::Value>>>,
     links: Option<DatumLinks>,
 }
@@ -128,6 +131,14 @@ pub enum DataType {
     Accounts,
 }
 
+#[derive(Serialize)]
+pub struct TransactionCSV {
+    raw_text: Option<String>,
+    description: String,
+    message: String,
+    value_in_base_units: i64,
+}
+
 pub async fn get_transactions() -> Result<TransactionList, String> {
     let client = reqwest::Client::new();
     let transaction_url = "https://api.up.com.au/api/v1/transactions";
@@ -150,13 +161,38 @@ pub async fn get_transactions() -> Result<TransactionList, String> {
     }
 }
 
+
 pub fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
     let list = transactions.data;
-    let income: Vec<Datum> = list.into_iter().filter(|t| {
+    let file = File::create("test.csv").unwrap();
+    let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
+    let income: Vec<TransactionCSV> = list.into_iter().filter(|t| {
             t.attributes.amount.value_in_base_units > 0
         }
-    ).collect();
-    let names_only: Vec<String>= income.into_iter().filter_map(|t| t.attributes.raw_text ).collect();
-    println!("{:?}", names_only);
+    )
+    .map(|t| { TransactionCSV {
+        raw_text: t.attributes.raw_text,
+        description: t.attributes.description,
+        message: t.attributes.message,
+        value_in_base_units: t.attributes.amount.value_in_base_units
+    }})
+    .collect();
+
+    for txn in income {
+        wtr.serialize(txn).unwrap();
+    }
+
+    wtr.flush().unwrap();
     Ok(())
 }
+
+// pub fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
+//     let list = transactions.data;
+//     let income: Vec<Datum> = list.into_iter().filter(|t| {
+//             t.attributes.amount.value_in_base_units > 0
+//         }
+//     ).collect();
+//     let names_only: Vec<String>= income.into_iter().filter_map(|t| t.attributes.raw_text ).collect();
+//     println!("{:?}", names_only);
+//     Ok(())
+// }

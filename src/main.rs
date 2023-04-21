@@ -1,7 +1,7 @@
 mod transactions;
 
 use dotenv::dotenv;
-use transactions::{get_transactions, parse_transactions};
+use transactions::{get_transactions, parse_transactions, write_to_csv};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -31,7 +31,8 @@ async fn main() {
     match args.command {
         Command::Transactions(transactions_args) => {
             let transactions = get_transactions(transactions_args.size).await;
-            let _parse = parse_transactions(transactions.unwrap());
+            let csv_data = parse_transactions(transactions.unwrap());
+            write_to_csv(csv_data.unwrap(), "transaction.csv");
         }
     }
 }

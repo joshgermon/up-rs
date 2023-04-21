@@ -103,11 +103,8 @@ pub async fn get_transactions(size: i8) -> Result<TransactionList, String> {
 }
 
 
-pub fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
-    let list = transactions.data;
-    let file = File::create("test.csv").unwrap();
-    let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
-    let income: Vec<TransactionCSV> = list.into_iter().filter(|t| {
+pub fn parse_transactions(transactions: TransactionList) -> Result<Vec<TransactionCSV>, String> {
+    let income: Vec<TransactionCSV> = transactions.data.into_iter().filter(|t| {
             t.attributes.amount.value_in_base_units > 0
         }
     )
@@ -118,22 +115,15 @@ pub fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
         value_in_base_units: t.attributes.amount.value_in_base_units
     }})
     .collect();
-
-    for txn in income {
-        wtr.serialize(txn).unwrap();
-    }
-
-    wtr.flush().unwrap();
-    Ok(())
+    Ok(income)
 }
 
-// pub fn parse_transactions(transactions: TransactionList) -> Result<(), String> {
-//     let list = transactions.data;
-//     let income: Vec<Datum> = list.into_iter().filter(|t| {
-//             t.attributes.amount.value_in_base_units > 0
-//         }
-//     ).collect();
-//     let names_only: Vec<String>= income.into_iter().filter_map(|t| t.attributes.raw_text ).collect();
-//     println!("{:?}", names_only);
-//     Ok(())
-// }
+pub fn write_to_csv(rows: Vec<TransactionCSV>, file_path: &str) -> Result<(), std::io::Error>{
+    let file = File::create(file_path).unwrap();
+    let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
+    for row in rows {
+        wtr.serialize(rows)?;
+    }
+    wtr.flush()?;
+    Ok(())
+}

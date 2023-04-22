@@ -75,44 +75,57 @@ pub struct CashbackObject {
 
 #[derive(Serialize)]
 pub struct TransactionCSV {
+    status: TransactionStatusEnum,
     raw_text: Option<String>,
     description: String,
     message: Option<String>,
+    amount: String,
     value_in_base_units: i64,
+    created_at: String
 }
 
-pub async fn get_transactions(size: i8) -> Result<TransactionList, String> {
+pub async fn get_transactions(size: i8) -> Result<Vec<TransactionResource>, String> {
     let client = reqwest::Client::new();
-    let response = client.get(TRANSACTIONS_ENDPOINT)
-                        .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
-                        .query(&[("page[size]", size.to_string())])
-                        .send().await.unwrap();
+    let mut transaction_list = Vec::new();
+    let mut current_link = Some(String::from(TRANSACTIONS_ENDPOINT));
+    while let Some(endpoint) = current_link {
+        let response = client.get(endpoint)
+                            .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
+                            .query(&[("page[size]", size.to_string())])
+                            .send().await.unwrap();
 
-    match response.status() {
-        reqwest::StatusCode::OK => {
-            let transaction_list = response.json::<TransactionList>().await.map_err(|e| format!("JSON deserialization error: {}", e))?;
-            Ok(transaction_list)
-        }
-        reqwest::StatusCode::UNAUTHORIZED => {
-            Err(String::from("Authentication error"))
-        }
-        _ => {
-            Err(format!("Unknown error: {}", response.status()))
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let transactions = response.json::<TransactionList>().await.map_err(|e| format!("JSON deserialization error: {}", e))?;
+                transaction_list.extend(transactions.data);
+                current_link = transactions.links.next;
+            }
+            reqwest::StatusCode::UNAUTHORIZED => {
+                return Err(String::from("Authentication error"))
+            }
+            _ => {
+                return Err(format!("Unknown error: {}", response.status()))
+            }
         }
     }
+    Ok(transaction_list)
 }
 
 
-pub fn parse_transactions(transactions: TransactionList) -> Result<Vec<TransactionCSV>, String> {
-    let income: Vec<TransactionCSV> = transactions.data.into_iter().filter(|t| {
+pub fn parse_transactions(transactions: Vec<TransactionResource>) -> Result<Vec<TransactionCSV>, String> {
+    /* Filter out expenses */
+    let income: Vec<TransactionCSV> = transactions.into_iter().filter(|t| {
             t.attributes.amount.value_in_base_units > 0
         }
     )
     .map(|t| { TransactionCSV {
+        status: t.attributes.status,
         raw_text: t.attributes.raw_text,
         description: t.attributes.description,
         message: t.attributes.message,
-        value_in_base_units: t.attributes.amount.value_in_base_units
+        amount: t.attributes.amount.value,
+        value_in_base_units: t.attributes.amount.value_in_base_units,
+        created_at: t.attributes.created_at
     }})
     .collect();
     Ok(income)
@@ -122,7 +135,7 @@ pub fn write_to_csv(rows: Vec<TransactionCSV>, file_path: &str) -> Result<(), st
     let file = File::create(file_path).unwrap();
     let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
     for row in rows {
-        wtr.serialize(rows)?;
+        wtr.serialize(row)?;
     }
     wtr.flush()?;
     Ok(())

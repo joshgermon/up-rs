@@ -19,7 +19,7 @@ pub enum Command {
 
 #[derive(Debug, Parser)]
 pub struct TransactionsArgs {
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t=100)]
     size: i8,
 }
 

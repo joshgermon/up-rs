@@ -1,5 +1,6 @@
 mod transactions;
 
+use log::{info, trace, warn};
 use dotenv::dotenv;
 use transactions::{get_transactions, parse_transactions, write_to_csv};
 use clap::Parser;
@@ -26,6 +27,9 @@ pub struct TransactionsArgs {
 
 #[tokio::main]
 async fn main() {
+    /* Setup logger and env */
+    env_logger::init();
+
     dotenv().ok();
     let args = Args::parse();
     match args.command {

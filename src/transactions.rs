@@ -1,5 +1,6 @@
 use std::env;
 use std::fs::File;
+use log::info;
 use serde::{Serialize, Deserialize};
 use reqwest::{self, header::AUTHORIZATION};
 
@@ -88,6 +89,7 @@ pub async fn get_transactions(size: i8) -> Result<Vec<TransactionResource>, Stri
     let client = reqwest::Client::new();
     let mut transaction_list = Vec::new();
     let mut current_link = Some(String::from(TRANSACTIONS_ENDPOINT));
+    info!("Requesting transactions from Up API...");
     while let Some(endpoint) = current_link {
         let response = client.get(endpoint)
                             .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
@@ -108,6 +110,7 @@ pub async fn get_transactions(size: i8) -> Result<Vec<TransactionResource>, Stri
             }
         }
     }
+    info!("Retrieved all transactions.");
     Ok(transaction_list)
 }
 
@@ -132,11 +135,14 @@ pub fn parse_transactions(transactions: Vec<TransactionResource>) -> Result<Vec<
 }
 
 pub fn write_to_csv(rows: Vec<TransactionCSV>, file_path: &str) -> Result<(), std::io::Error>{
+    info!("Creating csv file at {}", file_path);
     let file = File::create(file_path).unwrap();
     let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
+    info!("Writing records into CSV...");
     for row in rows {
         wtr.serialize(row)?;
     }
     wtr.flush()?;
+    info!("Completed writing all records.");
     Ok(())
 }

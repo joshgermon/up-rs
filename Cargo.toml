@@ -13,3 +13,4 @@ serde_json = "1.0.96"
 dotenv = "0.15.0"
 clap = { version = "4.2.4", features = ["derive"] }
 csv = "1.2.1"
+log = "0.4.17"

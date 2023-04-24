@@ -85,15 +85,15 @@ pub struct TransactionCSV {
     created_at: String
 }
 
-pub async fn get_transactions(size: i8) -> Result<Vec<TransactionResource>, String> {
+pub async fn get_transactions(args: TransactionsArgs) -> Result<Vec<TransactionResource>, String> {
     let client = reqwest::Client::new();
     let mut transaction_list = Vec::new();
     let mut current_link = Some(String::from(TRANSACTIONS_ENDPOINT));
-    info!("Requesting transactions from Up API...");
+    println!("Requesting transactions from Up API...");
     while let Some(endpoint) = current_link {
         let response = client.get(endpoint)
                             .header(AUTHORIZATION, format!("Bearer {}", env::var("UP_API_TOKEN").unwrap()))
-                            .query(&[("page[size]", size.to_string())])
+                            .query(&[("page[size]", args.size.to_string())])
                             .send().await.unwrap();
 
         match response.status() {
@@ -110,10 +110,9 @@ pub async fn get_transactions(size: i8) -> Result<Vec<TransactionResource>, Stri
             }
         }
     }
-    info!("Retrieved all transactions.");
+    println!("Retrieved all transactions.");
     Ok(transaction_list)
 }
-
 
 pub fn parse_transactions(transactions: Vec<TransactionResource>) -> Result<Vec<TransactionCSV>, String> {
     /* Filter out expenses */
@@ -135,7 +134,7 @@ pub fn parse_transactions(transactions: Vec<TransactionResource>) -> Result<Vec<
 }
 
 pub fn write_to_csv(rows: Vec<TransactionCSV>, file_path: &str) -> Result<(), std::io::Error>{
-    info!("Creating csv file at {}", file_path);
+    println!("Creating csv file at {}", file_path);
     let file = File::create(file_path).unwrap();
     let mut wtr = csv::WriterBuilder::new().has_headers(true).from_writer(file);
     info!("Writing records into CSV...");
@@ -143,6 +142,6 @@ pub fn write_to_csv(rows: Vec<TransactionCSV>, file_path: &str) -> Result<(), st
         wtr.serialize(row)?;
     }
     wtr.flush()?;
-    info!("Completed writing all records.");
+    println!("Completed writing all records.");
     Ok(())
 }

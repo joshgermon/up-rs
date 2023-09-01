@@ -3,6 +3,7 @@ use std::fs::File;
 use log::info;
 use serde::{Serialize, Deserialize};
 use reqwest::{self, header::AUTHORIZATION};
+use crate::TransactionsArgs;
 
 const TRANSACTIONS_ENDPOINT: &str = "https://api.up.com.au/api/v1/transactions";
 
